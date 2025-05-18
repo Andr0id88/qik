@@ -143,13 +143,34 @@ func getDefaultMoods() map[string]config.MoodInstruction {
 	// Descriptions are for the 'list-moods' command.
 	// Instructions are injected into AI prompts.
 	return map[string]config.MoodInstruction{
-		"neutral":    {"Standard correction without specific tone alteration. Relies on base prompt's natural styling.", ""},
-		"professional": {"Refine text to be formal, objective, and suitable for business or academic contexts.", "Additionally, adjust the tone of the text to be highly professional, formal, and objective. Avoid colloquialisms and ensure a polished, business-like feel."},
-		"casual":     {"Make the text sound more relaxed, friendly, and conversational.", "Additionally, adjust the tone of the text to be more casual, friendly, and conversational. Use simpler language and a more relaxed style where appropriate."},
-		"funny":      {"Inject humor, wit, or lightheartedness into the text (use with care).", "Additionally, try to inject appropriate and subtle humor or a lighthearted tone into the text. Make it engaging and amusing without undermining the core message, if applicable."},
-		"persuasive": {"Make the text more convincing, confident, and impactful.", "Additionally, refine the text to be more persuasive and impactful. Strengthen arguments, use confident language, and aim to convince the reader."},
-		"empathetic": {"Adjust the text to convey understanding, support, and compassion.", "Additionally, adjust the tone to be empathetic and supportive. Use language that conveys understanding and compassion, suitable for sensitive topics."},
-		"concise":    {"Make the text as brief and to-the-point as possible, removing fluff.", "Additionally, ensure the text is extremely concise and to-the-point. Remove any redundant words or phrases and focus on conveying the core message with maximum brevity."},
+		"neutral": { // Using keyed literal
+			Description: "Standard correction without specific tone alteration. Relies on base prompt's natural styling.",
+			Instruction: "",
+		},
+		"professional": { // Using keyed literal
+			Description: "Refine text to be formal, objective, and suitable for business or academic contexts.",
+			Instruction: "Additionally, adjust the tone of the text to be highly professional, formal, and objective. Avoid colloquialisms and ensure a polished, business-like feel.",
+		},
+		"casual": { // Using keyed literal
+			Description: "Make the text sound more relaxed, friendly, and conversational.",
+			Instruction: "Additionally, adjust the tone of the text to be more casual, friendly, and conversational. Use simpler language and a more relaxed style where appropriate.",
+		},
+		"funny": { // Using keyed literal
+			Description: "Inject humor, wit, or lightheartedness into the text (use with care).",
+			Instruction: "Additionally, try to inject appropriate and subtle humor or a lighthearted tone into the text. Make it engaging and amusing without undermining the core message, if applicable.",
+		},
+		"persuasive": { // Using keyed literal
+			Description: "Make the text more convincing, confident, and impactful.",
+			Instruction: "Additionally, refine the text to be more persuasive and impactful. Strengthen arguments, use confident language, and aim to convince the reader.",
+		},
+		"empathetic": { // Using keyed literal
+			Description: "Adjust the text to convey understanding, support, and compassion.",
+			Instruction: "Additionally, adjust the tone to be empathetic and supportive. Use language that conveys understanding and compassion, suitable for sensitive topics.",
+		},
+		"concise": { // Using keyed literal
+			Description: "Make the text as brief and to-the-point as possible, removing fluff.",
+			Instruction: "Additionally, ensure the text is extremely concise and to-the-point. Remove any redundant words or phrases and focus on conveying the core message with maximum brevity.",
+		},
 	}
 }
 
@@ -218,7 +239,7 @@ func initConfig() {
 	}
 
 	viper.AutomaticEnv()                               // Read matching environment variables.
-	viper.SetEnvPrefix("QIK")                          // E.g., QIK_DEFAULTLANGUAGE. (Changed from SF)
+	viper.SetEnvPrefix("QIK")                          // E.g., QIK_DEFAULTLANGUAGE.
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_")) // For nested keys like prompts.default -> QIK_PROMPTS_DEFAULT.
 
 	// Attempt to read the configuration file.
@@ -285,11 +306,11 @@ func initConfig() {
 		printVerbose("EnglishFixOnly prompt missing or outdated, setting to program default.")
 		AppConfig.Prompts.EnglishFixOnly = defaultPromptsConfig.EnglishFixOnly
 	}
-	if AppConfig.Prompts.ExplainText == "" { // Also ensure ExplainText is present
+	if AppConfig.Prompts.ExplainText == "" {
 		printVerbose("ExplainText prompt missing, setting to program default.")
 		AppConfig.Prompts.ExplainText = defaultPromptsConfig.ExplainText
 	}
-	if AppConfig.Prompts.AnswerQuestion == "" { // And AnswerQuestion
+	if AppConfig.Prompts.AnswerQuestion == "" {
 		printVerbose("AnswerQuestion prompt missing, setting to program default.")
 		AppConfig.Prompts.AnswerQuestion = defaultPromptsConfig.AnswerQuestion
 	}
