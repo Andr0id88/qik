@@ -1,0 +1,97 @@
+# .github/workflows/build.yml
+name: qik Go Build and Test Matrix # <<< CHANGED name
+
+on:
+  push:
+    branches: ["main", "master", "develop", "feat/**"] # Adjust branches as needed
+  pull_request:
+    branches: ["main", "master", "develop"] # Adjust branches as needed
+
+jobs:
+  build-and-test: # Renamed job for clarity
+    name: Build and Test (${{ matrix.goos }}-${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Don't cancel other matrix jobs if one fails (optional)
+      matrix:
+        include:
+          - goos: linux
+            arch: amd64
+          - goos: linux
+            arch: arm64
+          - goos: darwin # macOS
+            arch: amd64
+          - goos: darwin # macOS
+            arch: arm64
+          - goos: windows
+            arch: amd64
+    env:
+      # Define base cache directory name for this project
+      CACHE_PROJECT_NAME: qik # <<< CHANGED
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod' # Reads Go version from your go.mod file
+        cache: false # We use a separate, more granular cache step
+
+    - name: Cache Go build & modules
+      uses: actions/cache@v4 # Changed to v4 for consistency
+      with:
+        # Path is more specific to avoid conflicts if other Go projects are on the same runner type
+        path: |
+          ${{ env.HOME }}/.cache/${{ env.CACHE_PROJECT_NAME }}/${{ matrix.goos }}-${{ matrix.arch }}/gomod
+          ${{ env.HOME }}/.cache/${{ env.CACHE_PROJECT_NAME }}/${{ matrix.goos }}-${{ matrix.arch }}/gocache
+        key: ${{ env.CACHE_PROJECT_NAME }}-${{ runner.os }}-${{ matrix.goos }}-${{ matrix.arch }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ env.CACHE_PROJECT_NAME }}-${{ runner.os }}-${{ matrix.goos }}-${{ matrix.arch }}-
+
+    - name: Build and Test (${{ matrix.goos }}-${{ matrix.arch }})
+      id: build_step # Renamed for clarity
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.arch }}
+        CGO_ENABLED: 0
+        # Set absolute per-arch cache dirs for the Go commands
+        GOMODCACHE: ${{ env.HOME }}/.cache/${{ env.CACHE_PROJECT_NAME }}/${{ matrix.goos }}-${{ matrix.arch }}/gomod
+        GOCACHE: ${{ env.HOME }}/.cache/${{ env.CACHE_PROJECT_NAME }}/${{ matrix.goos }}-${{ matrix.arch }}/gocache
+      run: |
+        set -euo pipefail # Fail fast on errors
+
+        # Ensure cache directories exist
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+
+        PROJECT_NAME="qik" # <<< CHANGED
+
+        echo "Running go vet..."
+        go vet ./...
+
+        echo "Running go test..."
+        go test -v ./... # Remove '|| true' if you want tests to fail the build
+
+        EXT=""
+        if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+        BIN_FILENAME="${PROJECT_NAME}${EXT}" # Simpler binary name for CI artifacts
+
+        echo "Building $PROJECT_NAME for $GOOS/$GOARCH..."
+        go build -v -ldflags="-s -w" -o "$BIN_FILENAME" . # Build in current dir
+
+        # Prepare a distribution directory for artifact upload
+        DIST_DIR="dist-${GOOS}-${GOARCH}"
+        mkdir -p "$DIST_DIR"
+        mv "$BIN_FILENAME" "$DIST_DIR/" # Move binary to its own dist folder
+
+        echo "dist_path=${DIST_DIR}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload build artifact (${{ matrix.goos }}-${{ matrix.arch }})
+      if: success() # Only upload if build succeeds
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.CACHE_PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.arch }} # e.g., qik-linux-amd64
+        path: ${{ steps.build_step.outputs.dist_path }}
+        if-no-files-found: error # Fail if no files are found to upload
+        retention-days: 7 # Keep CI artifacts for a week

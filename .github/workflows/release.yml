@@ -1,0 +1,174 @@
+# .github/workflows/release.yml
+name: Publish qik Release
+
+on:
+  push:
+    tags: ["v*.*.*"] # Triggers on tags like v1.0.0, v0.1.2, etc.
+
+permissions:
+  contents: write # Needed to create releases and upload assets
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # For releases, usually false is better to ensure completion
+
+jobs:
+  build-release-assets: # Renamed job for clarity
+    name: Build Release Assets (${{ matrix.goos }}-${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            arch: amd64
+          - goos: linux
+            arch: arm64
+          - goos: darwin # macOS
+            arch: amd64
+          - goos: darwin # macOS
+            arch: arm64
+          - goos: windows
+            arch: amd64
+    outputs: # Outputs from each matrix job (not strictly needed if publishing consumes all artifacts)
+      goos: ${{ matrix.goos }}
+      arch: ${{ matrix.arch }}
+      # Individual outputs might not be needed if the publish job consumes all artifacts by pattern
+    env:
+      # Define GOMODCACHE and GOCACHE at the job level for consistency
+      GOMODCACHE_DIR: ${{ github.workspace }}/.cache/go-mod-${{ matrix.goos }}-${{ matrix.arch }}
+      GOCACHE_DIR: ${{ github.workspace }}/.cache/go-build-${{ matrix.goos }}-${{ matrix.arch }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetch all history to accurately determine version/tags if needed by build tools
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod' # Reads Go version from your go.mod file
+        cache: false # We are using a separate, more granular cache step
+
+    - name: Cache Go Modules and Build Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.GOMODCACHE_DIR }}
+          ${{ env.GOCACHE_DIR }}
+        key: go-${{ runner.os }}-${{ matrix.goos }}-${{ matrix.arch }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ matrix.goos }}-${{ matrix.arch }}-
+
+    - name: Build Binary and Checksum (${{ matrix.goos }}-${{ matrix.arch }})
+      id: build_bin # Unique ID for this step
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.arch }}
+        CGO_ENABLED: 0
+        GOMODCACHE: ${{ env.GOMODCACHE_DIR }}
+        GOCACHE: ${{ env.GOCACHE_DIR }}
+      run: |
+        set -euo pipefail # Fail fast on errors
+
+        # Ensure cache directories exist
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+
+        PROJECT_NAME="qik" # <<< CHANGED
+        VERSION_TAG="${GITHUB_REF_NAME#v}" # Extracts '1.0.0' from 'refs/tags/v1.0.0'
+
+        EXT=""
+        if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+
+        BIN_FILENAME="${PROJECT_NAME}_${VERSION_TAG}_${GOOS}_${GOARCH}${EXT}"
+        CHECKSUM_FILENAME="${BIN_FILENAME}.sha256"
+        ARTIFACT_NAME="build-${PROJECT_NAME}-${GOOS}-${GOARCH}" # Name for the uploaded artifact bundle
+
+        mkdir -p dist # Create a distribution directory
+
+        echo "Building $PROJECT_NAME version $VERSION_TAG for $GOOS/$GOARCH..."
+
+        # Add ldflags to embed version information if desired
+        # Example: go build -v -ldflags="-s -w -X main.version=${VERSION_TAG}" -o "dist/$BIN_FILENAME" .
+        go build -v -ldflags="-s -w" -o "dist/$BIN_FILENAME" .
+
+        echo "Generating checksum for dist/$BIN_FILENAME..."
+        (cd dist && sha256sum "$BIN_FILENAME" > "$CHECKSUM_FILENAME")
+
+        echo "Binary path: dist/$BIN_FILENAME"
+        echo "Checksum path: dist/$CHECKSUM_FILENAME"
+        echo "Artifact name: $ARTIFACT_NAME"
+
+        # Set outputs for this step
+        echo "bin_path=dist/$BIN_FILENAME" >> "$GITHUB_OUTPUT"
+        echo "checksum_path=dist/$CHECKSUM_FILENAME" >> "$GITHUB_OUTPUT"
+        echo "artifact_upload_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+        echo "bin_filename=${BIN_FILENAME}" >> "$GITHUB_OUTPUT" # Filename for release asset
+        echo "checksum_filename=${CHECKSUM_FILENAME}" >> "$GITHUB_OUTPUT" # Filename for release asset
+
+    - name: Upload Build Artifact (${{ matrix.goos }}-${{ matrix.arch }})
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.build_bin.outputs.artifact_upload_name }}
+        path: |
+          ${{ steps.build_bin.outputs.bin_path }}
+          ${{ steps.build_bin.outputs.checksum_path }}
+        retention-days: 7 # Keep artifacts for a reasonable period for debugging/inspection
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-release-assets # Depends on the build job completing for all matrix variations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create a release and upload assets
+    steps:
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      # No 'name' means download all artifacts from previous jobs in this workflow run
+      with:
+        path: artifacts/ # All artifacts will be downloaded into subdirectories here
+
+    - name: Prepare Release Assets for GitHub Release
+      id: prep_release_assets
+      run: |
+        set -euo pipefail
+        mkdir -p release_assets
+        FINAL_CHECKSUMS_FILENAME="qik_${GITHUB_REF_NAME#v}_checksums.txt" # <<< CHANGED project name and version
+
+        echo "Preparing assets for release..."
+        # Artifacts are downloaded like: artifacts/build-qik-linux-amd64/qik_1.0.0_linux_amd64
+
+        # Copy all binaries from their artifact subdirectories to release_assets
+        find artifacts/build-qik-*/* -type f ! -name '*.sha256' -exec cp {} release_assets/ \;
+
+        # Concatenate all individual .sha256 files into the final checksums.txt
+        # Ensure consistent order for the checksum file contents
+        echo "Generating final ${FINAL_CHECKSUMS_FILENAME}..."
+        find artifacts/build-qik-*/* -type f -name '*.sha256' -print0 | sort -z | xargs -0 cat > "release_assets/${FINAL_CHECKSUMS_FILENAME}"
+
+        echo "Files prepared in release_assets:"
+        ls -lR release_assets/
+        echo "Contents of release_assets/${FINAL_CHECKSUMS_FILENAME}:"
+        cat "release_assets/${FINAL_CHECKSUMS_FILENAME}"
+
+        echo "asset_path=release_assets/*" >> "$GITHUB_OUTPUT"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        # tag_name is automatically inferred from github.ref (the tag that triggered the workflow)
+        name: qik ${{ github.ref_name }} # Release title, e.g., "qik v1.0.0" <<< CHANGED
+        body: |
+          Automated release for qik ${{ github.ref_name }}.
+
+          **Assets:**
+          See attached files below.
+
+          **Changelog:**
+          (Consider adding a way to automatically generate or link to a changelog here)
+        draft: false # Set to true to create a draft release that you can review and publish manually
+        prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+        files: ${{ steps.prep_release_assets.outputs.asset_path }} # Glob pattern for all files in release_assets
+        fail_on_unmatched_files: true # Important: ensure all expected files are uploaded

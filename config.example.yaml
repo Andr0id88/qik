@@ -1,0 +1,148 @@
+# qik Configuration File
+# ----------------------
+# This file allows you to customize the behavior of the 'qik' CLI tool.
+# Copy this file to ~/.config/qik/config.yaml (Linux/macOS) or create it there,
+# or place it as 'config.yaml' in the same directory as the qik executable.
+
+# Default language for text processing (e.g., corrections, explanations, answers).
+# This is used if no specific language is requested via command-line flags.
+# Examples: "Norwegian", "English", "German", "French"
+defaultLanguage: "Norwegian"
+
+# Preferred command-line editor for text input.
+# Examples: "nvim", "vim", "nano", "code --wait" (for VS Code, ensure it blocks).
+editor: "nvim"
+
+# Gemini AI model to use for processing.
+# Run 'qik list-models' for more details on available models and their strengths.
+# The '-latest' suffix usually points to the most recent stable version of a model series.
+# Examples:
+#   "gemini-1.5-flash-latest": (Recommended Default) Fast, cost-effective, good for general tasks, 1M token context.
+#   "gemini-1.5-pro-latest":   Most capable, for highest quality results or complex tasks, 1M token context.
+#   "gemini-pro":              Older generation model, still capable for text tasks.
+# Ensure the model you choose is available for your API key and region.
+geminiModel: "gemini-1.5-flash-latest"
+
+# Gemini API Key (Optional in this file).
+# It is STRONGLY RECOMMENDED to provide your API key via:
+#   1. The 'pass' password manager: store the key under the entry 'gemini_api_key'.
+#   2. An environment variable: set GEMINI_API_KEY to your key.
+# Storing the key directly in this file is less secure.
+# geminiApiKey: "YOUR_API_KEY_HERE" # Uncomment and replace if you must use this method.
+
+# Default mood/tone to apply if no --mood flag is specified with 'fix' or 'answer' commands.
+# The key used here must exist in the 'moods' section defined below.
+# 'neutral' is a good default, meaning no specific tonal adjustment beyond the base prompt.
+defaultMood: "neutral"
+
+# AI Prompt Templates
+# -------------------
+# These templates define the instructions given to the Gemini AI for various tasks.
+# You can customize these prompts, but be careful with the placeholders.
+#
+# Placeholders:
+#   {LANGUAGE}: Will be replaced with the target language (e.g., "Norwegian", "English").
+#   {TEXT}:     Will be replaced with the user's input text from the editor.
+#   {MOOD_INSTRUCTION}: Will be replaced with the instruction text from the 'moods'
+#                       section below, based on the selected mood (for 'fix' and 'answer').
+prompts:
+  # Default prompt for the 'fix' command.
+  default: |
+    You are an expert proofreader and linguistic assistant.
+    Your primary task is to meticulously review the following text.
+    Correct all spelling and grammatical errors.
+    Improve the flow and clarity of the text, rephrasing sentences or restructuring paragraphs if necessary to make it sound natural and well-written.
+    The final output should be in {LANGUAGE}.
+    {MOOD_INSTRUCTION}
+    Do NOT include any preambles, apologies, or explanations in your response. Only return the corrected and refined text.
+
+    Original text to process:
+    ---
+    {TEXT}
+    ---
+
+  # Prompt for the 'fix' command when targeting English specifically (e.g. via --english flag).
+  english_fix_only: |
+    You are an expert English proofreader.
+    Your primary task is to meticulously review the following English text.
+    Correct all spelling and grammatical errors.
+    Improve the flow and clarity of the text, rephrasing sentences or restructuring paragraphs if necessary to make it sound natural and well-written.
+    The text is already in English, so no translation is needed.
+    {MOOD_INSTRUCTION}
+    Do NOT include any preambles, apologies, or explanations in your response. Only return the corrected and refined text.
+
+    Original text to process:
+    ---
+    {TEXT}
+    ---
+
+  # Prompt for the 'explain' command.
+  explain_text: |
+    You are an expert at simplifying complex topics.
+    The user will provide a piece of text. Your task is to explain the main concepts or what the person is talking about in that text.
+    The explanation should be:
+    1. Simple and easy to understand, even for someone not familiar with the topic.
+    2. Concise and to the point. Aim for a short summary.
+    3. If a specific output language is requested via the {LANGUAGE} placeholder, use that language. Otherwise, attempt to provide the explanation in the SAME language as the input text ({TEXT}).
+    Do NOT include any preambles, apologies, or phrases like "This text is about...". Just provide the explanation directly.
+
+    Text to explain:
+    ---
+    {TEXT}
+    ---
+
+  # Prompt for the 'answer' command.
+  answer_question: |
+    You are an intelligent and helpful assistant.
+    The user will provide a question. Your task is to provide a clear, concise, and accurate answer to that question.
+    Consider the following when formulating your response:
+    1. Directly address the question asked.
+    2. Provide the answer in the {LANGUAGE} language.
+    3. Adjust the tone of your answer according to the specified mood: {MOOD_INSTRUCTION}
+       If no specific mood instruction is given for "neutral", answer in a helpful and informative default tone.
+    Do NOT include any preambles like "Here is the answer to your question:" or "The answer is:". Just provide the answer directly.
+
+    Question to answer:
+    ---
+    {TEXT}
+    ---
+
+# Mood/Tone Adjustments
+# ---------------------
+# Define various moods/tones that can be applied to text processed by 'fix' or 'answer' commands.
+# Each mood has a 'description' (shown by 'qik list-moods') and an 'instruction'
+# (injected into the AI prompt via the {MOOD_INSTRUCTION} placeholder).
+# Run 'qik list-moods' to see these definitions from your active configuration.
+moods:
+  neutral:
+    description: "Standard processing without specific tone alteration. Relies on the base prompt's natural styling."
+    instruction: "" # For 'neutral', an empty instruction typically means no additional tone guidance.
+
+  professional:
+    description: "Refine text to be formal, objective, and suitable for business or academic contexts."
+    instruction: "Additionally, adjust the tone of the text to be highly professional, formal, and objective. Avoid colloquialisms and ensure a polished, business-like feel."
+
+  casual:
+    description: "Make the text sound more relaxed, friendly, and conversational."
+    instruction: "Additionally, adjust the tone of the text to be more casual, friendly, and conversational. Use simpler language and a more relaxed style where appropriate."
+
+  funny:
+    description: "Inject humor, wit, or lightheartedness into the text. Use with care, as humor is subjective."
+    instruction: "Additionally, try to inject appropriate and subtle humor or a lighthearted tone into the text. Make it engaging and amusing without undermining the core message, if applicable."
+
+  persuasive:
+    description: "Make the text more convincing, confident, and impactful."
+    instruction: "Additionally, refine the text to be more persuasive and impactful. Strengthen arguments, use confident language, and aim to convince the reader."
+
+  empathetic:
+    description: "Adjust the text to convey understanding, support, and compassion. Suitable for sensitive topics."
+    instruction: "Additionally, adjust the tone to be empathetic and supportive. Use language that conveys understanding and compassion, suitable for sensitive topics."
+
+  concise:
+    description: "Make the text as brief and to-the-point as possible, removing redundant words or phrases."
+    instruction: "Additionally, ensure the text is extremely concise and to-the-point. Remove any redundant words or phrases and focus on conveying the core message with maximum brevity."
+
+  # You can add more custom moods here following the same structure:
+  # your_mood_key:
+  #   description: "A description for 'qik list-moods'."
+  #   instruction: "The instruction for the AI to achieve this mood."
