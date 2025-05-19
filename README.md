@@ -72,6 +72,7 @@ go build -o qik .
 ```
 3. Move the qik binary to your desired location in PATH.
 
+---
 
 ## 🚀 Usage
 
@@ -156,6 +157,8 @@ qik answer -c # or --copy
 * qik list-models: Shows available Gemini models with descriptions.
 * qik list-moods: Shows moods defined in your configuration.
 
+---
+
 ## ⚙️ Configuration
 
 qik looks for a configuration file in the following order:
@@ -184,15 +187,30 @@ It is **highly recommended** to set your Gemini API key using:
 
 You can also set geminiApiKey in the config file, but this is less secure.
 
+---
+
 ## 🤝 Contributing (Optional)
 
 Contributions are welcome! If you have ideas for improvements or find a bug, please feel free to:
+
 1. Fork the repository.
-2. Create a new feature branch (git checkout -b feature/AmazingFeature).
-3. Make your changes.
-4. Commit your changes (git commit -m 'Add some AmazingFeature').
-5. Push to the branch (git push origin feature/AmazingFeature).
+2. Clone your fork to your local machine:
+```bash
+git clone https://github.com/Andr0id88/qik.git
+```
+3. Create a new feature branch:
+```bash
+git checkout -b feature/AmazingFeature
+```
+4. Make your changes.
+5. Commit and push your changes:
+```bash
+git commit -m 'Add some AmazingFeature'
+git push origin feature/AmazingFeature
+```
 6. Open a Pull Request.
+
+---
 
 ## 📄 License
 This project is licensed under the [MIT License](https://github.com/Andr0id88/qik/blob/main/LICENSE)
